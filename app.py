@@ -1,8 +1,13 @@
 import os
+import dotenv
 from tavily import TavilyClient
 import streamlit as st
 from pypdf import PdfReader
 from google import genai
+
+
+# Load environment variables from.env file
+load_dotenv()
 
 st.title(" Fact Check Agent")
 st.markdown("""
@@ -10,8 +15,8 @@ Upload a PDF document and automatically verify factual claims using Gemini AI an
 """)
 
 try:
-    tavily = TavilyClient(api_key=os.getenv("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"))
-    client = genai.Client(api_key=os.getenv("AQ.Ab8RN6K1gp9SGtanFi-XBvqbN3tckhO45LWrXU0ZNn8ARV3gWA"))
+    tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
+    client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 except Exception as e:
     st.error(f"Error initializing API clients: {e}")
     st.stop()
