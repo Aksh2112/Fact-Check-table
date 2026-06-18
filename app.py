@@ -1,12 +1,11 @@
 import os
-import dotenv
+from dotenv import load_dotenv
 from tavily import TavilyClient
 import streamlit as st
 from pypdf import PdfReader
 from google import genai
 
-
-# Load environment variables from.env file
+# Load environment variables from .env file
 load_dotenv()
 
 st.title(" Fact Check Agent")
@@ -14,6 +13,7 @@ st.markdown("""
 Upload a PDF document and automatically verify factual claims using Gemini AI and Tavily Search.
 """)
 
+# Initialize clients with environment variables for security
 try:
     tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
     client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
