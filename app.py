@@ -13,7 +13,7 @@ tavily = TavilyClient(
 )
 
 client = genai.Client(
-    api_key="AQ.Ab8RN6KVcD35PUoJ42GeokDLgii-nUIeCUVeWZJBDgY0BvfTMg"
+    api_key="AQ.Ab8RN6JlounhgFd-sYclkO3KnWlFlPYwuQ3IW3g569Nl_75ZFg"
 )
 
 
