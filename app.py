@@ -9,7 +9,6 @@ st.markdown("""
 Upload a PDF document and automatically verify factual claims using Gemini AI and Tavily Search.
 """)
 
-# Initialize clients with environment variables for security
 try:
     tavily = TavilyClient(api_key=os.getenv("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"))
     client = genai.Client(api_key=os.getenv("AQ.Ab8RN6K1gp9SGtanFi-XBvqbN3tckhO45LWrXU0ZNn8ARV3gWA"))
