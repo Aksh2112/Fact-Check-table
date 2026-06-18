@@ -54,9 +54,14 @@ if uploaded_file:
         {text}
         """
 
-        response = client.models.generate_content(
-    model="gemini-2.5-flash",
-    contents=prompt)
+       try:
+            response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+          )
+      except Exception as e:
+            st.error(str(e))
+            st.stop()
 
 
         st.subheader("Extracted Claims")
