@@ -148,3 +148,4 @@ Reason:
           "Download Report", report_text,
           file_name="fact_check_report.txt"
         )
+        st.write("App version test")
