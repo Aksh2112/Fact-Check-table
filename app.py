@@ -96,15 +96,12 @@ if uploaded_file:
           verification_prompt = f"""
           You are a professional fact checker.
         Claim:
-
         {claim}
 
         Evidence:
-
         {evidence_text}
 
         Based on the evidence, classify the claim as:
-
 - VERIFIED (matches current data)
 - INACCURATE (partially correct or outdated)
 - FALSE (contradicted by evidence)
