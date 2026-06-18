@@ -59,7 +59,7 @@ if uploaded_file:
                     """
 
                     response = client.models.generate_content(
-                        model="gemini-2.5-flash",
+                        model="gemini-2.0-flash",
                         contents=prompt
                     )
                     
@@ -68,8 +68,15 @@ if uploaded_file:
                     claims = response.text  
                     st.write(claims)
                     
-                    # Parse claims into list
-                    claims_list = [claim.strip() for claim in claims.split("\n") if claim.strip()]
+                    # Parse claims into list with better filtering
+                    claims_list = [
+                        claim.strip().lstrip("•-*0123456789. ") 
+                        for claim in claims.split("\n") 
+                        if claim.strip() and len(claim.strip()) > 10
+                    ]
+
+                    # Collect all reports for final download
+                    all_reports = []
 
                     for claim in claims_list:
                         try:
@@ -91,7 +98,9 @@ if uploaded_file:
                                     st.write(item.get("url", "N/A"))
                                     st.write("---")
                             else:
-                                st.info("No search results found for this claim.")
+                                st.info("⚠️ No search results found for this claim. Skipping verification.")
+                                st.divider()
+                                continue
 
                             # Verify claim
                             verification_prompt = f"""
@@ -115,10 +124,21 @@ if uploaded_file:
                             <2 lines explanation>
                             """
                             
-                            verification_response = client.models.generate_content(
-                                model="gemini-2.5-flash",
-                                contents=verification_prompt
-                            )
+                            try:
+                                verification_response = client.models.generate_content(
+                                    model="gemini-2.0-flash",
+                                    contents=verification_prompt
+                                )
+                            except Exception as verify_error:
+                                if "INVALID_ARGUMENT" in str(verify_error):
+                                    st.error("Invalid verification request. Check prompt format.")
+                                elif "PERMISSION_DENIED" in str(verify_error):
+                                    st.error("API key invalid or expired. Check environment variables.")
+                                elif "429" in str(verify_error):
+                                    st.error("Rate limit exceeded. Please wait before trying again.")
+                                else:
+                                    st.error(f"Verification error: {str(verify_error)[:100]}")
+                                continue
 
                             st.subheader("Verdict")
                             verdict = verification_response.text
@@ -134,27 +154,46 @@ if uploaded_file:
 
                             st.divider()
                             
-                            # Generate report
+                            # Collect report for final download
                             report_text = f"""
-                            Claim:
-                            {claim}
+CLAIM:
+{claim}
 
-                            Verdict:
-                            {verification_response.text}
-                            """
+VERDICT:
+{verification_response.text}
 
-                            st.download_button(
-                                "Download Report",
-                                report_text,
-                                file_name="fact_check_report.txt"
-                            )
+EVIDENCE SOURCES:
+{evidence_text[:500]}
+"""
+                            all_reports.append(report_text)
 
                         except Exception as claim_error:
                             st.error(f"Error processing claim: {claim_error}")
                             continue
 
+                    # Generate final combined report
+                    if all_reports:
+                        final_report = "\n\n" + "="*50 + "\n\n".join(all_reports)
+                        
+                        st.subheader("📋 Download Full Report")
+                        st.download_button(
+                            "📥 Download Complete Fact-Check Report",
+                            final_report,
+                            file_name="fact_check_report.txt",
+                            key="final_report"
+                        )
+                    else:
+                        st.warning("No claims were successfully verified. Check your PDF and try again.")
+
                 except Exception as api_error:
-                    st.error(f"Error during fact-checking: {api_error}")
+                    if "INVALID_ARGUMENT" in str(api_error):
+                        st.error("Invalid API request. Check your prompt format.")
+                    elif "PERMISSION_DENIED" in str(api_error):
+                        st.error("API key invalid or expired. Check environment variables.")
+                    elif "429" in str(api_error):
+                        st.error("Rate limit exceeded. Please wait before trying again.")
+                    else:
+                        st.error(f"Error during fact-checking: {api_error}")
 
     except Exception as file_error:
         st.error(f"Error reading PDF file: {file_error}")
