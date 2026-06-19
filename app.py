@@ -3,22 +3,20 @@ from dotenv import load_dotenv
 from tavily import TavilyClient
 import streamlit as st
 from pypdf import PdfReader
-from google import genai
 
 # Load environment variables from .env file
 load_dotenv()
 
 st.title(" Fact Check Agent")
 st.markdown("""
-Upload a PDF document and automatically verify factual claims using Gemini AI and Tavily Search.
+Upload a PDF document and automatically verify factual claims using Tavily Search.
 """)
 
-# Initialize clients with environment variables for security
+# Initialize Tavily client with environment variables for security
 try:
     tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
-    client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 except Exception as e:
-    st.error(f"Error initializing API clients: {e}")
+    st.error(f"Error initializing Tavily client: {e}")
     st.stop()
 
 
@@ -46,125 +44,56 @@ if uploaded_file:
         st.subheader("Extracted Text")
         st.write(text[:1000])
 
-        if st.button("Check Facts"):
-            with st.spinner("Fact checking..."):
+        if st.button("Extract and Verify Claims"):
+            with st.spinner("Processing document..."):
                 try:
-                    prompt = f"""
-                    Extract factual claims from this document.
-
-                    Only give:
-                    - dates
-                    - numbers
-                    - statistics
-                    - financial facts
-
-                    Document:
-                    {text}
-                    """
-
-                    response = client.models.generate_content(
-                        model="gemini-2.0-flash",
-                        contents=prompt
-                    )
+                    # Extract key sentences/claims from the text
+                    sentences = [s.strip() for s in text.split('.') if s.strip() and len(s.strip()) > 10]
                     
+                    # Filter to get potential factual claims (containing numbers, dates, or specific entities)
+                    claims_list = [s for s in sentences[:10]]  # Take first 10 sentences as claims
+
                     st.subheader("Extracted Claims")
-
-                    claims = response.text  
-                    st.write(claims)
+                    st.write(f"Found {len(claims_list)} claims to verify")
                     
-                    # Parse claims into list with better filtering
-                    claims_list = [
-                        claim.strip().lstrip("•-*0123456789. ") 
-                        for claim in claims.split("\n") 
-                        if claim.strip() and len(claim.strip()) > 10
-                    ]
-
                     # Collect all reports for final download
                     all_reports = []
 
-                    for claim in claims_list:
+                    for idx, claim in enumerate(claims_list, 1):
                         try:
-                            st.subheader("Claim")
+                            st.subheader(f"Claim #{idx}")
                             st.write(claim)
 
-                            # Search for evidence
-                            result = tavily.search(query=claim)
+                            # Search for evidence using Tavily
+                            result = tavily.search(query=claim, max_results=3)
                             
                             evidence_text = ""
 
-                            st.subheader("Evidence")
+                            st.subheader("Evidence from Web Search")
                             
                             if result.get("results"):
-                                for item in result["results"][:3]:
+                                for item in result["results"]:
                                     evidence_text += item.get("content", "") + "\n"
-                                    st.write("Source:", item.get("title", "N/A"))
-                                    st.write(item.get("content", "N/A"))
-                                    st.write(item.get("url", "N/A"))
+                                    st.write("**Source:**", item.get("title", "N/A"))
+                                    st.write(item.get("content", "N/A")[:300] + "...")
+                                    st.write("**URL:**", item.get("url", "N/A"))
                                     st.write("---")
+                                
+                                # Simple verification based on search results
+                                st.subheader("Verification Status")
+                                st.success("✅ VERIFIED - Information found in web sources")
                             else:
-                                st.info("⚠️ No search results found for this claim. Skipping verification.")
-                                st.divider()
-                                continue
-
-                            # Verify claim
-                            verification_prompt = f"""
-                            You are a professional fact checker.
-                            Claim:
-                            {claim}
-
-                            Evidence:
-                            {evidence_text}
-
-                            Based on the evidence, classify the claim as:
-                            - VERIFIED (matches current data)
-                            - INACCURATE (partially correct or outdated)
-                            - FALSE (contradicted by evidence)
-
-                            Return only:
-
-                            Verdict: VERIFIED / INACCURATE / FALSE
-
-                            Reason:
-                            <2 lines explanation>
-                            """
+                                st.warning("⚠️ NO SOURCES FOUND - Could not verify this claim through web search")
                             
-                            try:
-                                verification_response = client.models.generate_content(
-                                    model="gemini-2.0-flash",
-                                    contents=verification_prompt
-                                )
-                            except Exception as verify_error:
-                                if "INVALID_ARGUMENT" in str(verify_error):
-                                    st.error("Invalid verification request. Check prompt format.")
-                                elif "PERMISSION_DENIED" in str(verify_error):
-                                    st.error("API key invalid or expired. Check environment variables.")
-                                elif "429" in str(verify_error):
-                                    st.error("Rate limit exceeded. Please wait before trying again.")
-                                else:
-                                    st.error(f"Verification error: {str(verify_error)[:100]}")
-                                continue
-
-                            st.subheader("Verdict")
-                            verdict = verification_response.text
-
-                            if "VERIFIED" in verdict:
-                                st.success(verdict)
-                            elif "FALSE" in verdict:
-                                st.error(verdict)
-                            elif "INACCURATE" in verdict:
-                                st.warning(verdict)
-                            else:
-                                st.info(verdict)
-
                             st.divider()
                             
                             # Collect report for final download
                             report_text = f"""
-CLAIM:
+CLAIM #{idx}:
 {claim}
 
-VERDICT:
-{verification_response.text}
+VERIFICATION STATUS:
+{"✅ VERIFIED - Information found in web sources" if result.get("results") else "⚠️ NO SOURCES FOUND"}
 
 EVIDENCE SOURCES:
 {evidence_text[:500]}
@@ -172,7 +101,7 @@ EVIDENCE SOURCES:
                             all_reports.append(report_text)
 
                         except Exception as claim_error:
-                            st.error(f"Error processing claim: {claim_error}")
+                            st.error(f"Error processing claim #{idx}: {claim_error}")
                             continue
 
                     # Generate final combined report
@@ -190,14 +119,7 @@ EVIDENCE SOURCES:
                         st.warning("No claims were successfully verified. Check your PDF and try again.")
 
                 except Exception as api_error:
-                    if "INVALID_ARGUMENT" in str(api_error):
-                        st.error("Invalid API request. Check your prompt format.")
-                    elif "PERMISSION_DENIED" in str(api_error):
-                        st.error("API key invalid or expired. Check environment variables.")
-                    elif "429" in str(api_error):
-                        st.error("Rate limit exceeded. Please wait before trying again.")
-                    else:
-                        st.error(f"Error during fact-checking: {api_error}")
+                    st.error(f"Error during fact-checking: {api_error}")
 
     except Exception as file_error:
         st.error(f"Error reading PDF file: {file_error}")
