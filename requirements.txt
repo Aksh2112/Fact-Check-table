@@ -1,5 +1,4 @@
 streamlit
-google-genai
 tavily-python
 pypdf
 python-dotenv
